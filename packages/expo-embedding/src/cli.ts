@@ -1,7 +1,11 @@
-import { dirname, resolve } from 'node:path';
+import { readdir } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
+import { prepareAndroidWorkspace } from './android';
+import { prepareAndroid, hoistAndroidDependencies, initializeAndroid } from './android-setup';
+import { exists } from './files';
 import { prepareIos, initializeIos } from './ios';
 import { findAppRoot } from './scaffold';
 import { prepareExpoProject, installDependencies, installPackages } from './setup';
@@ -16,6 +20,8 @@ async function main(): Promise<void> {
       target: { type: 'string' },
       platform: { type: 'string' },
       json: { type: 'boolean' },
+      'migrate-activity': { type: 'string' },
+      'configure-host': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
     allowPositionals: true,
@@ -49,10 +55,25 @@ async function main(): Promise<void> {
 
   const root = await findAppRoot(process.cwd());
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-  if (values.platform && values.platform !== 'ios')
-    throw new Error('This integration supports --platform ios.');
-  const ios = await prepareIos(root, packageRoot, values);
+  const hasIos = (await readdir(root)).some((name) => name.endsWith('.xcodeproj'));
+  const hasAndroid =
+    (await exists(join(root, 'settings.gradle.kts'))) ||
+    (await exists(join(root, 'settings.gradle')));
+  const platform =
+    values.platform ?? (hasAndroid && !hasIos ? 'android' : !hasAndroid ? 'ios' : undefined);
+  if (platform !== 'ios' && platform !== 'android')
+    throw new Error('Select a native platform with --platform ios or --platform android.');
+  if (
+    values['migrate-activity'] !== undefined &&
+    (platform !== 'android' || values['migrate-activity'] !== 'appcompat')
+  )
+    throw new Error('Use --migrate-activity=appcompat only with Android setup.');
+  if (values['configure-host'] && platform !== 'android')
+    throw new Error('Use --configure-host only with Android setup.');
+
+  const ios = platform === 'ios' ? await prepareIos(root, packageRoot, values) : undefined;
   if (command === 'skill') {
+    if (!ios) throw new Error('The agent guide currently supports --platform ios.');
     await printSkill(packageRoot, values.json ?? false, {
       root,
       platform: 'ios',
@@ -66,11 +87,19 @@ async function main(): Promise<void> {
     });
     return;
   }
-  const isNewExpoProject = await prepareExpoProject(root, command, frozen);
-  const manager = await installDependencies(root, frozen);
+  const hostChanges = platform === 'android' ? await prepareAndroid(root, values) : [];
+  const isNewExpoProject = await prepareExpoProject(root, command, frozen, platform);
+  if (platform === 'android') await prepareAndroidWorkspace(root, frozen);
+  const manager = await installDependencies(
+    root,
+    frozen,
+    platform === 'android' ? root : undefined
+  );
+  if (platform === 'android') await hoistAndroidDependencies(root, frozen);
   if (command === 'install') await installPackages(root, manager, packages);
   try {
-    await initializeIos(ios, packageRoot);
+    if (ios) await initializeIos(ios, packageRoot);
+    else await initializeAndroid(root, packageRoot, hostChanges);
   } catch (error) {
     if (command === 'install') {
       throw new Error(
@@ -80,7 +109,7 @@ async function main(): Promise<void> {
     }
     throw error;
   }
-  if (command === 'init' && isNewExpoProject) {
+  if (ios && command === 'init' && isNewExpoProject) {
     process.stdout.write(
       'SwiftUI: import expoappbrownfield, own an ExpoHost, forward the app delegate with ExpoBrownfieldAppDelegate,\n' +
         'attach .expoHost(host) to your root view, and display ExpoScene(name: "Main").frame(height: 240).\n'
