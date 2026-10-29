@@ -7,7 +7,7 @@ export type MigrationReport = {
   schemaVersion: 1;
   usage: string;
   root: string;
-  platform: 'ios';
+  platform: 'ios' | 'android';
   selection: Record<string, string>;
   changes: { path: string; before?: string; after: string }[];
   preview: string;

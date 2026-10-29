@@ -1,10 +1,15 @@
 import { readdir } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { prepareAndroidWorkspace } from './android';
-import { prepareAndroid, hoistAndroidDependencies, initializeAndroid } from './android-setup';
+import {
+  prepareAndroid,
+  planAndroidHost,
+  hoistAndroidDependencies,
+  initializeAndroid,
+} from './android-setup';
 import { exists } from './files';
 import { prepareIos, initializeIos } from './ios';
 import { findAppRoot } from './scaffold';
@@ -42,7 +47,10 @@ async function main(): Promise<void> {
   }
   if (values.json && command !== 'skill')
     throw new Error('--json is only supported by npx expo-embedding skill.');
-  if (command === 'skill' && values['frozen-lockfile'])
+  if (
+    command === 'skill' &&
+    (values['frozen-lockfile'] || values['configure-host'] || values['migrate-activity'])
+  )
     throw new Error(
       'skill only accepts --json and host selection options. Run npx expo-embedding --help for usage.'
     );
@@ -73,17 +81,25 @@ async function main(): Promise<void> {
 
   const ios = platform === 'ios' ? await prepareIos(root, packageRoot, values) : undefined;
   if (command === 'skill') {
-    if (!ios) throw new Error('The agent guide currently supports --platform ios.');
+    const android = platform === 'android' ? await planAndroidHost(root, values) : undefined;
     await printSkill(packageRoot, values.json ?? false, {
       root,
-      platform: 'ios',
-      selection: {
-        project: ios.project,
-        target: ios.target,
-      },
-      changes: [],
-      preview:
-        'SwiftUI source wiring is described below. Generated Xcode changes require running npx expo-embedding init with installed dependencies; no generated diff is available in this read-only report.',
+      platform,
+      selection: ios
+        ? {
+            project: ios.project,
+            target: ios.target,
+          }
+        : {
+            activity: android!.activity.activityName,
+            application: android!.application.applicationName,
+          },
+      changes:
+        android?.changes.map((change) => ({ ...change, path: relative(root, change.path) })) ?? [],
+      preview: android
+        ? android.preview ||
+          'No automatic host edits are needed. Verify Activity delegate wiring and scene placement using the guide below.'
+        : 'SwiftUI source wiring is described below. Generated Xcode changes require running npx expo-embedding init with installed dependencies; no generated diff is available in this read-only report.',
     });
     return;
   }
