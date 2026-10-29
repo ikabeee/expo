@@ -1,5 +1,11 @@
 # Changelog
 
+## 58.0.17
+
+### Patch Changes
+
+- [Android] Fix minified release builds not sending data, because R8 removed the WorkManager input merger constructor. ([#52456](https://github.com/expo/expo/pull/52456) by [@Ubax](https://github.com/Ubax))
+
 ## 58.0.16
 
 ### Patch Changes

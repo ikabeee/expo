@@ -1,5 +1,14 @@
 # observe-tester
 
+## 1.0.16
+
+### Patch Changes
+
+- Updated dependencies. ([#52456](https://github.com/expo/expo/pull/52456))
+  - expo-observe@58.0.17
+  - expo@58.0.22
+  - expo-image@58.0.18
+
 ## 1.0.15
 
 ### Patch Changes

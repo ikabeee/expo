@@ -1,5 +1,17 @@
 # bare-expo
 
+## 0.0.17
+
+### Patch Changes
+
+- Updated dependencies. ([#52456](https://github.com/expo/expo/pull/52456))
+  - expo-observe@58.0.17
+  - native-component-list@0.0.16
+  - test-suite@1.0.16
+  - expo@58.0.22
+  - expo-background-fetch@58.0.12
+  - expo-image@58.0.18
+
 ## 0.0.16
 
 ### Patch Changes

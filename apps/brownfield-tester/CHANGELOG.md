@@ -1,5 +1,12 @@
 # expo-brownfield-tester
 
+## 0.0.17
+
+### Patch Changes
+
+- Updated dependencies.
+  - expo@58.0.22
+
 ## 0.0.16
 
 ### Patch Changes
